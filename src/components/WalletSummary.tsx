@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useWallet } from "../context/WalletContext";
-import axios from "axios";
+import { getAlgoBalance } from "../services/algorand";
 
 const WalletSummary: React.FC = () => {
   const { account } = useWallet();
@@ -11,10 +11,8 @@ const WalletSummary: React.FC = () => {
 
     const fetchBalance = async () => {
       try {
-        const res = await axios.get(
-          `https://testnet-api.algonode.cloud/v2/accounts/${account}`
-        );
-        setBalance(res.data.amount / 1e6); // convert microalgos to algos
+        const balance = await getAlgoBalance(account);
+        setBalance(balance);
       } catch (err) {
         console.error(err);
       }
