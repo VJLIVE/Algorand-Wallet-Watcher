@@ -2,7 +2,6 @@ import axios from "axios";
 
 const NETWORK = import.meta.env.VITE_ALGOD_NETWORK || "testnet";
 
-// You can also make this configurable at runtime.
 const BASE_URL =
   NETWORK === "mainnet"
     ? "https://mainnet-api.algonode.cloud/v2"
@@ -25,26 +24,18 @@ export type AccountInfo = {
 
 /**
  * Fetch account info from Algorand Indexer.
- * Includes ALGO balance, assets (NFTs & tokens), etc.
  */
 export async function getAccountInfo(address: string): Promise<AccountInfo> {
-  try {
-    const res = await axios.get(`${BASE_URL}/accounts/${address}`);
-    const account = res.data;
-
-    return {
-      address: account.address,
-      amount: account.amount, // in microAlgos
-      assets: account.assets || [],
-    };
-  } catch (error) {
-    console.error(`Failed to fetch account info:`, error);
-    throw error;
-  }
+  const { data } = await axios.get(`${BASE_URL}/accounts/${address}`);
+  return {
+    address: data.address,
+    amount: data.amount,
+    assets: data.assets || [],
+  };
 }
 
 /**
- * Get ALGO balance in Algos (not microalgos)
+ * Get ALGO balance in Algos
  */
 export async function getAlgoBalance(address: string): Promise<number> {
   const info = await getAccountInfo(address);
@@ -52,30 +43,67 @@ export async function getAlgoBalance(address: string): Promise<number> {
 }
 
 /**
- * Get NFTs from account (ASA with 1 unit and usually metadata)
+ * Get NFTs (ASA with 1 unit)
  */
 export async function getNFTs(address: string): Promise<Asset[]> {
   const info = await getAccountInfo(address);
-
-  // Filter assets that are likely NFTs (you can adjust the filter logic)
-  const nfts = info.assets.filter((asset) => asset.amount === 1);
-  return nfts;
+  return info.assets.filter((asset) => asset.amount === 1);
 }
 
-export async function resolveARC3Metadata(url: string): Promise<{ name: string; image: string }> {
-  const cleanUrl = url.replace("#arc3", "");
-  const resolvedUrl = cleanUrl.startsWith("ipfs://")
-    ? `https://ipfs.io/ipfs/${cleanUrl.replace("ipfs://", "")}`
-    : cleanUrl;
+/**
+ * Resolve metadata for an asset.
+ * Handles ARC3, ARC69, and fallback (direct URL).
+ */
+export async function resolveAssetMetadata(assetId: number): Promise<{ name: string; image: string }> {
+  try {
+    const { data } = await axios.get(`${BASE_URL}/assets/${assetId}`);
+    const params = data.params;
 
-  const { data } = await axios.get(resolvedUrl);
+    let name = params.name || `Asset ${assetId}`;
+    let image = "";
 
-  let name = data.name || "";
-  let image = data.image || "";
+    // ARC3
+    if (params.url?.endsWith("#arc3")) {
+      const metadataUrl = params.url.replace("#arc3", "");
+      const resolvedUrl = metadataUrl.startsWith("ipfs://")
+        ? `https://ipfs.io/ipfs/${metadataUrl.replace("ipfs://", "")}`
+        : metadataUrl;
 
-  if (image.startsWith("ipfs://")) {
-    image = `https://ipfs.io/ipfs/${image.replace("ipfs://", "")}`;
+      const metadataRes = await axios.get(resolvedUrl);
+      if (metadataRes.data.image) {
+        image = metadataRes.data.image.startsWith("ipfs://")
+          ? `https://ipfs.io/ipfs/${metadataRes.data.image.replace("ipfs://", "")}`
+          : metadataRes.data.image;
+
+        name = metadataRes.data.name || name;
+      }
+    }
+
+    // ARC69
+    else if (params.note) {
+      try {
+        const noteString = atob(params.note);
+        const noteJSON = JSON.parse(noteString);
+        name = noteJSON.name || name;
+        image = noteJSON.image || "";
+        if (image.startsWith("ipfs://")) {
+          image = `https://ipfs.io/ipfs/${image.replace("ipfs://", "")}`;
+        }
+      } catch (err) {
+        console.error("Failed to parse ARC69 metadata", err);
+      }
+    }
+
+    // fallback: direct URL
+    else if (params.url) {
+      image = params.url.startsWith("ipfs://")
+        ? `https://ipfs.io/ipfs/${params.url.replace("ipfs://", "")}`
+        : params.url;
+    }
+
+    return { name, image };
+  } catch (err) {
+    console.error(`Failed to resolve metadata for asset ${assetId}`, err);
+    return { name: `Asset ${assetId}`, image: "" };
   }
-
-  return { name, image };
 }

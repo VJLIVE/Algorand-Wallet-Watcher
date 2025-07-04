@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useWallet } from "../context/WalletContext";
-import { getNFTs, resolveARC3Metadata } from "../services/algorand";
-import type { Asset } from "../services/algorand";
-import axios from "axios";
+import { getNFTs, resolveAssetMetadata, type Asset } from "../services/algorand";
 
 type NFT = {
   id: number;
@@ -25,39 +23,12 @@ const NFTList: React.FC = () => {
 
         const resolvedNFTs: NFT[] = await Promise.all(
           assets.map(async (asset: Asset) => {
-            try {
-              const { data } = await axios.get(
-                `https://testnet-api.algonode.cloud/v2/assets/${asset["asset-id"]}`
-              );
-
-              const params = data.params;
-              let name = params.name || `Asset ${asset["asset-id"]}`;
-              let image = "";
-
-              if (params.url && params.url.endsWith("#arc3")) {
-                const { name: metaName, image: metaImage } =
-                  await resolveARC3Metadata(params.url);
-
-                name = metaName || name;
-                image = metaImage || "";
-              }
-
-              return {
-                id: asset["asset-id"],
-                name,
-                image,
-              };
-            } catch (err) {
-              console.error(
-                `Failed to fetch metadata for asset ${asset["asset-id"]}`,
-                err
-              );
-              return {
-                id: asset["asset-id"],
-                name: `Asset ${asset["asset-id"]}`,
-                image: "",
-              };
-            }
+            const { name, image } = await resolveAssetMetadata(asset["asset-id"]);
+            return {
+              id: asset["asset-id"],
+              name,
+              image,
+            };
           })
         );
 
