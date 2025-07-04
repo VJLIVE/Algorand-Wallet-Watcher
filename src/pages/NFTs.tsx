@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useWallet } from "../context/WalletContext";
 import { getNFTs, resolveAssetMetadata, type Asset } from "../services/algorand";
-import { ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 type NFT = {
   id: number;
@@ -10,9 +8,8 @@ type NFT = {
   image: string;
 };
 
-const NFTList: React.FC = () => {
+const AllNFTs: React.FC = () => {
   const { account } = useWallet();
-  const navigate = useNavigate();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -70,14 +67,12 @@ const NFTList: React.FC = () => {
     );
   }
 
-  const displayedNFTs = nfts.slice(0, 3);
-
   return (
     <div className="bg-white p-6 rounded-lg shadow">
-      <h2 className="text-xl font-bold mb-4 text-gray-800">NFTs</h2>
+      <h2 className="text-xl font-bold mb-4 text-gray-800">All NFTs</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {displayedNFTs.map((nft) => (
+        {nfts.map((nft) => (
           <div key={nft.id} className="text-center">
             {nft.image ? (
               <img
@@ -94,19 +89,8 @@ const NFTList: React.FC = () => {
           </div>
         ))}
       </div>
-
-      {nfts.length > 3 && (
-        <div className="text-center mt-4">
-          <button
-            onClick={() => navigate("/nfts")}
-            className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-          >
-            Show More <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      )}
     </div>
   );
 };
 
-export default NFTList;
+export default AllNFTs;
