@@ -61,3 +61,21 @@ export async function getNFTs(address: string): Promise<Asset[]> {
   const nfts = info.assets.filter((asset) => asset.amount === 1);
   return nfts;
 }
+
+export async function resolveARC3Metadata(url: string): Promise<{ name: string; image: string }> {
+  const cleanUrl = url.replace("#arc3", "");
+  const resolvedUrl = cleanUrl.startsWith("ipfs://")
+    ? `https://ipfs.io/ipfs/${cleanUrl.replace("ipfs://", "")}`
+    : cleanUrl;
+
+  const { data } = await axios.get(resolvedUrl);
+
+  let name = data.name || "";
+  let image = data.image || "";
+
+  if (image.startsWith("ipfs://")) {
+    image = `https://ipfs.io/ipfs/${image.replace("ipfs://", "")}`;
+  }
+
+  return { name, image };
+}
