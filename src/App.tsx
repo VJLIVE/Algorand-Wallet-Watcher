@@ -1,19 +1,18 @@
-// App.tsx
-import React from 'react';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Dashboard from "./pages/Dashboard";
+import NotFound from "./pages/NotFound";
 
-const App: React.FC = () => {
+function App() {
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="p-6 bg-white rounded-lg shadow-lg text-center">
-        <h1 className="text-3xl font-bold text-blue-600 mb-4">
-          Tailwind CSS is Working!
-        </h1>
-        <p className="text-gray-700">
-          If you see this styled text, Tailwind CSS is configured correctly.
-        </p>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
   );
-};
+}
 
 export default App;
