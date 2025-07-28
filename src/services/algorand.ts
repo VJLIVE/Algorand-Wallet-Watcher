@@ -1,4 +1,5 @@
 import axios from "axios";
+import { algorandReserveToCID } from "../utils/ipfs";
 
 const NETWORK = import.meta.env.VITE_ALGOD_NETWORK || "testnet";
 
@@ -54,7 +55,9 @@ export async function getNFTs(address: string): Promise<Asset[]> {
  * Resolve metadata for an asset.
  * Handles ARC3, ARC69, and fallback (direct URL).
  */
-export async function resolveAssetMetadata(assetId: number): Promise<{ name: string; image: string }> {
+export async function resolveAssetMetadata(
+  assetId: number
+): Promise<{ name: string; image: string }> {
   try {
     const { data } = await axios.get(`${BASE_URL}/assets/${assetId}`);
     const params = data.params;
@@ -70,31 +73,56 @@ export async function resolveAssetMetadata(assetId: number): Promise<{ name: str
         : metadataUrl;
 
       const metadataRes = await axios.get(resolvedUrl);
-      if (metadataRes.data.image) {
-        image = metadataRes.data.image.startsWith("ipfs://")
-          ? `https://ipfs.io/ipfs/${metadataRes.data.image.replace("ipfs://", "")}`
-          : metadataRes.data.image;
+      name = metadataRes.data.name || name;
+      image = metadataRes.data.image || "";
 
-        name = metadataRes.data.name || name;
+      if (image.startsWith("ipfs://")) {
+        image = `https://ipfs.io/ipfs/${image.replace("ipfs://", "")}`;
       }
     }
 
     // ARC69
     else if (params.note) {
       try {
-        const noteString = atob(params.note);
-        const noteJSON = JSON.parse(noteString);
-        name = noteJSON.name || name;
-        image = noteJSON.image || "";
+        const noteStr = atob(params.note);
+        const json = JSON.parse(noteStr);
+        name = json.name || name;
+        image = json.image || "";
         if (image.startsWith("ipfs://")) {
           image = `https://ipfs.io/ipfs/${image.replace("ipfs://", "")}`;
         }
       } catch (err) {
-        console.error("Failed to parse ARC69 metadata", err);
+        console.warn("ARC69 metadata parsing failed", err);
       }
     }
 
-    // fallback: direct URL
+    // ARC19 (template-ipfs)
+    else if (params.url?.startsWith("template-ipfs://{ipfscid")) {
+  const reserve = params.reserve;
+  if (reserve) {
+    const cid = algorandReserveToCID(reserve);
+
+    try {
+      // fetch metadata.json inside the CID
+      const metaRes = await axios.get(`https://ipfs.io/ipfs/${cid}/metadata.json`);
+      const meta = metaRes.data;
+
+      name = meta.name || name;
+      image = meta.image || "";
+
+      if (image.startsWith("ipfs://")) {
+        image = `https://ipfs.io/ipfs/${image.replace("ipfs://", "")}`;
+      } else if (!image.startsWith("http")) {
+        // if it's just a filename (e.g., "image.png"), resolve relative to CID
+        image = `https://ipfs.io/ipfs/${cid}/${image}`;
+      }
+    } catch (err) {
+      console.error(`Failed to fetch ARC19 metadata for CID ${cid}:`, err);
+    }
+  }
+}
+
+    // Fallback (assume direct URL)
     else if (params.url) {
       image = params.url.startsWith("ipfs://")
         ? `https://ipfs.io/ipfs/${params.url.replace("ipfs://", "")}`
@@ -103,7 +131,7 @@ export async function resolveAssetMetadata(assetId: number): Promise<{ name: str
 
     return { name, image };
   } catch (err) {
-    console.error(`Failed to resolve metadata for asset ${assetId}`, err);
+    console.error(`Error resolving metadata for ${assetId}:`, err);
     return { name: `Asset ${assetId}`, image: "" };
   }
 }
