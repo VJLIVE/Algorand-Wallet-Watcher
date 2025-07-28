@@ -135,3 +135,31 @@ export async function resolveAssetMetadata(
     return { name: `Asset ${assetId}`, image: "" };
   }
 }
+
+export async function fetchTransactionsForAddress(address: string): Promise<any[]> {
+  const indexerURL = "https://testnet-idx.algonode.cloud"; // or MainNet
+  const txns: any[] = [];
+
+  let nextToken = "";
+  let hasMore = true;
+
+  while (hasMore && txns.length < 1000) {
+    const res = await axios.get(`${indexerURL}/v2/accounts/${address}/transactions`, {
+      params: {
+        limit: 100,
+        "next": nextToken,
+      },
+    });
+
+    const fetched = res.data.transactions || [];
+    txns.push(...fetched);
+
+    if (res.data["next-token"]) {
+      nextToken = res.data["next-token"];
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return txns;
+}
